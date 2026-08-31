@@ -30,7 +30,7 @@ class AssistantManagerTest {
 
     @Test
     fun `reset clears state and level`() {
-        manager.transitionTo(AssistantState.Responding)
+        manager.transitionTo(AssistantState.Executing)
         manager.updateAudioLevel(0.7f)
 
         manager.reset()

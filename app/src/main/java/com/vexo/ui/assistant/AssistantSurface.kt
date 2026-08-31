@@ -38,6 +38,7 @@ private val OrbSize = 148.dp
 @Composable
 fun AssistantSurface(
     audioLevel: Float,
+    dismiss: Boolean,
     onClosed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -45,6 +46,8 @@ fun AssistantSurface(
     var closing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { visible = true }
+
+    LaunchedEffect(dismiss) { if (dismiss) closing = true }
 
     LaunchedEffect(closing) {
         if (closing) {
