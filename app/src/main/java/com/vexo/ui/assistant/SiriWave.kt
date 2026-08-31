@@ -36,18 +36,17 @@ enum class SiriWaveVariant {
 /**
  * Animation version 2: a Siri-style shader driven from a `withFrameNanos` loop.
  *
- * **Give this a square surface.** Both shaders derive their geometry from the aspect ratio — the wave
- * through `p.x *= aspect` and its `xN` normalisation, the dots through `min(res.x, res.y)`. At
- * aspect 1 the wave forms the compact lens shape of the original; stretched wide it thins out into a
- * ribbon and stops resembling it. This still holds when [background] is transparent: the square is
- * then invisible, but it is what keeps the shape right, so it cannot be widened.
+ * **[SiriWaveVariant.Wave] wants a wide surface; [SiriWaveVariant.FluidDots] wants a square one.**
+ * The wave normalises its horizontal geometry by the aspect ratio and tapers to nothing at the left
+ * and right edges, so it fills whatever band it is given — one waveform stretched, never extra
+ * cycles. The dots normalise by `min(res.x, res.y)` and so still render small in a wide band.
  *
  * The shader's own black areas are already transparent — alpha comes from the brightest channel — so
  * with no [background] only the glow is drawn and the overlay stays see-through.
  *
  * Three uniforms are pushed per frame — `iResolution`, `iTime` and `iAudio`. [audioLevel] is the
- * normalised 0..1 microphone amplitude; at 0 the shader reproduces its original time-driven
- * animation exactly, and speech only adds movement.
+ * normalised 0..1 microphone amplitude; at 0 nothing in the animation depends on the microphone, and
+ * speech only adds movement.
  *
  * Version 1 ([VoiceOrb]) is still in the codebase and can be swapped back in at the call site.
  */
@@ -57,14 +56,14 @@ fun SiriWave(
     variant: SiriWaveVariant = SiriWaveVariant.Wave,
     audioLevel: Float = 0f,
     /**
-     * Strength of a soft radial dimming drawn behind the wave, `0f` to switch it off.
+     * Strength of a soft radial dimming drawn behind the wave. **Off by default**, because over a
+     * dark background the gradient itself reads as a dim circular blob behind the wave rather than as
+     * invisible depth — only the wave should be visible.
      *
-     * Not a frame: it fades to nothing well before the edges, so there is no visible boundary. It
-     * exists because the shaders were written against an opaque black canvas and a bright additive
-     * glow has little to add over a light background — with nothing behind it the wave washes out
-     * and whatever is on screen shows through the middle of it.
+     * Raise it if the wave ever needs help standing out against light content; a bright additive glow
+     * has little to add over white.
      */
-    scrimAlpha: Float = 0.72f,
+    scrimAlpha: Float = 0f,
     cornerRadius: Dp = 0.dp,
     /**
      * A hard backdrop beneath the shader, transparent by default. Pass `Color.Black` with a

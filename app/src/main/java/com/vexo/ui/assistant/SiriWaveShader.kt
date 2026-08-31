@@ -3,7 +3,9 @@ package com.vexo.ui.assistant
 /**
  * **Animation version 2.** AGSL ports of the Siri-style GLSL shaders.
  *
- * Two deliberate deviations from the GLSL originals, both forced by the target rather than taste:
+ * The first two deviations from the GLSL originals are forced by the target. The rest are forced by
+ * the surface: the source was written for a square canvas, and VEXO draws the wave into a band as
+ * wide as the screen, where several of the source's constants stop meaning what they meant.
  *
  * 1. **Alpha is derived from brightness.** The originals return `vec4(col, 1.0)` because they draw
  *    onto an opaque black canvas. VEXO's window is translucent and floats over whatever app is in
@@ -14,13 +16,29 @@ package com.vexo.ui.assistant
  * 2. **`iAudio` is folded into the existing band levels.** VEXO is a voice assistant, so a purely
  *    time-driven waveform would be a functional regression from the orb it replaces. The wave shader
  *    already synthesises fake `low`/`mid`/`high` levels from sine functions; real microphone
- *    amplitude is combined with `max()`, so at `iAudio = 0` the output is bit-for-bit the original
- *    animation and speech only ever adds movement.
+ *    amplitude is combined with `max()`, so at `iAudio = 0` nothing in the idle animation depends on
+ *    the microphone and speech only ever adds movement.
  *
- * Everything else — constants, spectral split, metaball fields, settle curves — is transcribed
- * unchanged. Only type names (`vec2` → `float2`, `mat2` → `float2x2`) and the entry point
- * (`mainImage` → `half4 main`) are adapted, because SkSL is stricter than GLSL about constructing
- * vectors from scalars.
+ * 3. **The waveform is normalised by aspect ratio.** `sin(p.x * FREQ)` becomes `sin(xN * FREQ)`.
+ *    `p.x` grows with the aspect ratio, so on a wide surface the sine fitted extra cycles in and the
+ *    lens turned into a wiggly ribbon; `xN` is already divided by the aspect, so the same waveform
+ *    stretches to whatever width it is given. At aspect 1 this is exactly the original.
+ *
+ * 4. **Horizontal and vertical scale are separate** — `SPAN` and `VSCALE` in place of one
+ *    `WAVE_SCALE`, which in a wide band would otherwise set the span and the crest height together.
+ *
+ * 5. **The side falloff is the amplitude envelope, not a Gaussian**, so brightness and amplitude
+ *    reach zero at the same place and the wave tapers to a point rather than to a straight line.
+ *
+ * 6. **Eight chromatic samples rather than four**, and `spectral4(int)` generalised to
+ *    `spectral(float)` to allow it, because four ribbons this far apart read as separate magenta and
+ *    green bands instead of a white core with coloured fringes.
+ *
+ * Each is explained at the constant it belongs to. `AMPLITUDE`, `FREQ` and `ABER_FREQ` are retuned
+ * for the wider surface; everything else — the spectral split, the metaball fields, the settle
+ * curves, the band fill — is transcribed unchanged. Only type names (`vec2` → `float2`,
+ * `mat2` → `float2x2`) and the entry point (`mainImage` → `half4 main`) are adapted, because SkSL is
+ * stricter than GLSL about constructing vectors from scalars.
  */
 
 /** The iOS voice waveform: chromatic, frequency-reactive. */
@@ -30,15 +48,39 @@ uniform float iTime;
 uniform float iAudio;
 
 const float PI = 3.14159265359;
-const float AMPLITUDE   = 0.32;
-const float FREQ        = 1.1;
-const float ABER_FREQ   = 1.0;
+const float AMPLITUDE   = 0.40;
+const float FREQ        = 2.2;
+const float ABER_FREQ   = 2.0;
 const float SPEED       = 2.4;
-const float WAVE_SCALE  = 0.6;
+/*
+ * Horizontal and vertical scale, split apart from the source's single `WAVE_SCALE = 0.6`, because
+ * VEXO draws the wave into a wide band rather than the square the GLSL was written for. One scale
+ * cannot serve both there: it sets the span *and* the amplitude at once.
+ *
+ * SPAN is in half-widths. xN runs to ±1/SPAN and the envelope forces amplitude to zero beyond
+ * |xN| > 1.111, so 0.9 lands that zero exactly on the left and right edges — the wave spans the
+ * whole band and tapers into nothing at both ends.
+ *
+ * VSCALE stays at the source value, which keeps the crest height and the line thickness in pixels
+ * as they were. It also leaves headroom: the wave's loudest crest is 0.76 * VSCALE = 0.46 of the
+ * half-height, inside the 0.6 where EDGE_MASK starts, so loud speech grows instead of clipping.
+ */
+const float SPAN        = 0.9;
+const float VSCALE      = 0.6;
 const float ABERRATION  = 2.6;
 const float THICKNESS   = 3.0;
 const float INTENSITY   = 2.0;
-const float FALLOFF     = 1.7;
+/*
+ * Exponent on the amplitude envelope, used as the horizontal brightness falloff. The source used a
+ * separate Gaussian, `exp(-(xN * 1.7)^2)`, which is wrong for a wide band in both directions: it
+ * died out around 40 % of the width, well before the envelope it was meant to accompany, and where
+ * it had not died the collapsing envelope left every coloured curve and the band fill sitting on
+ * y = 0 — a straight bright line running out to both screen edges.
+ *
+ * Tying the falloff to the envelope makes brightness and amplitude vanish together, so the wave
+ * tapers to a point instead of a line, with nothing to clip against.
+ */
+const float SIDE_FADE   = 1.5;
 const float EDGE_MASK   = 0.4;
 const float EDGE_INSET  = 0.0;
 const float BAND_FILL   = 30000.0;
@@ -55,8 +97,26 @@ const float HIGH_ABAMP  = 0.06;
 const float RESOLVED    = 1.0;
 const float UNRES_SCALE = 0.14;
 
-float3 spectral4(int s) {
-    float x = float(s);
+/*
+ * Added for VEXO. How much amplitude real speech adds on top of the idle animation. The source only
+ * had `LOW_AMP`, worth 0.06 at full level, which is barely visible; this makes talking obvious
+ * without pushing the crest into EDGE_MASK — see VSCALE.
+ */
+const float AUDIO_AMP = 0.30;
+
+/*
+ * Samples across the chromatic spread. The source took 4, which on a band this wide separates into
+ * discrete magenta and green ribbons rather than a white core with coloured fringes: at an
+ * ABERRATION of 2.6 radians the four curves are too far apart for any pixel to see all of them.
+ */
+const int SAMPLES = 8;
+
+/*
+ * The source's spectral4(), taken continuously so SAMPLES can vary: f in 0..1 walks the same
+ * red -> yellow -> green -> cyan ramp that s in 0..3 did.
+ */
+float3 spectral(float f) {
+    float x = f * 3.0;
     return clamp(
         float3(abs(x - 3.0) - 1.0, 2.0 - abs(x - 2.0), 2.0 - abs(x - 4.0)),
         0.0,
@@ -70,7 +130,7 @@ half4 main(float2 fragCoord) {
     float2 p = (fragCoord + float2(0.5)) * 2.0 / R - float2(1.0);
     p.x *= aspect;
     float yScreen = p.y;
-    p /= max(WAVE_SCALE, 0.1);
+    p /= float2(max(SPAN, 0.1), max(VSCALE, 0.1));
 
     float t = iTime;
     float audio = clamp(iAudio, 0.0, 1.0);
@@ -85,7 +145,7 @@ half4 main(float2 fragCoord) {
     float env = cos(PI * 0.5 * min(abs(0.9 * xN), 1.0));
     env *= env;
 
-    float A1 = AMPLITUDE + 0.01 * low * LOW_AMP;
+    float A1 = AMPLITUDE + 0.01 * low * LOW_AMP + audio * AUDIO_AMP;
     float A2 = A1 + mid * MID_ABAMP + high * HIGH_ABAMP;
     float AB = (ABERRATION + mid * MID_ABER + high * HIGH_ABER) * res;
     float th = mix(0.1, 0.01 * THICKNESS, res);
@@ -93,17 +153,22 @@ half4 main(float2 fragCoord) {
     float soft = 0.01 * res * max(0.0, SOFTNESS + mid * MID_SOFT);
 
     float dUnres = max(length(p) - mix(0.14, UNRES_SCALE, res), 0.0);
-    float yMain = A1 * env * res * sin(p.x * FREQ + drift);
+    // Deviation from the source, which used p.x here. p.x grows with the aspect ratio, so on a wide
+    // surface the sine fitted extra cycles in and the lens turned into a wiggly ribbon. xN is already
+    // normalised by aspect, so the identical waveform simply stretches to whatever width it is given
+    // — and at aspect 1 this is exactly the original.
+    float yMain = A1 * env * res * sin(xN * FREQ + drift);
 
     float bandFillTh = max(BAND_THICK, 0.0001);
     float bandAmt = 0.0001 * BAND_FILL * inten;
     float3 num = float3(0.0);
     float3 den = float3(0.0);
-    for (int s = 0; s < 4; s++) {
-        float3 hue = mix(float3(1.0), spectral4(s), res);
+    for (int s = 0; s < SAMPLES; s++) {
+        float f = float(s) / float(SAMPLES - 1);
+        float3 hue = mix(float3(1.0), spectral(f), res);
         den += hue;
-        float ab = mix(-AB, AB, float(s) / 3.0);
-        float yL = A2 * env * res * sin(p.x * ABER_FREQ + drift + ab);
+        float ab = mix(-AB, AB, f);
+        float yL = A2 * env * res * sin(xN * ABER_FREQ + drift + ab);
         float d = mix(dUnres, abs(p.y - yL), res);
         float lor = mix(1.0 / (1.0 + (0.02 * d) * (0.02 * d)), 1.0, res);
         float line = inten / (sqrt(d * d + soft * soft) + th);
@@ -123,8 +188,8 @@ half4 main(float2 fragCoord) {
     col = pow(max(col, float3(0.0)), float3(1.5));
     float emT = clamp((abs(yScreen) - 1.0 + EDGE_INSET) / (-max(EDGE_MASK, 0.0001)), 0.0, 1.0);
     float em = emT * emT * (3.0 - 2.0 * emT);
-    float gauss = exp(-pow(xN * FALLOFF, 2.0));
-    col *= mix(1.0, em * gauss, res);
+    float sides = pow(env, SIDE_FADE);
+    col *= mix(1.0, em * sides, res);
     col *= res;
 
     // Premultiplied, with alpha from the brightest channel: black becomes transparent so the
