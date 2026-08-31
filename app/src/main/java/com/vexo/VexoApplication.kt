@@ -24,7 +24,9 @@ class VexoApplication : Application() {
         SpeakerGate(modelStore = modelStore, profileStore = VoiceProfileStore(this))
     }
 
-    val textToSpeech: TextToSpeechManager by lazy { TextToSpeechManager(this, modelStore) }
+    val textToSpeech: TextToSpeechManager by lazy {
+        TextToSpeechManager(this, modelStore, settings)
+    }
 
     val assistantSession: AssistantSession by lazy {
         AssistantSession(

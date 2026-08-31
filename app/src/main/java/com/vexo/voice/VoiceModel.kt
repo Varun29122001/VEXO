@@ -4,15 +4,16 @@ import com.vexo.models.RemoteModel
 import com.vexo.models.VexoModels
 
 /**
- * A neural voice: which pack to fetch, plus the bits of it the synthesiser needs to be told about.
- * Swapping voices is a data change rather than a code change.
+ * A neural voice pack: which archive to fetch, plus the bits of it the synthesiser needs to be told
+ * about. Swapping packs is a data change rather than a code change.
+ *
+ * Which *speaker* within the pack is used is not fixed here — it is a user setting, because
+ * `libritts_r` is multi-speaker. See [VoiceOption] and `VexoSettings.speakerId`.
  */
 data class VoiceModel(
     val pack: RemoteModel.Archive,
     /** Weights file name inside the pack. */
     val weightsFileName: String,
-    /** Which voice to use for multi-speaker packs; ignored when the pack has one speaker. */
-    val speakerId: Int,
     /** Recorded so the licence story stays attached to the artefact. See README. */
     val datasetLicence: String,
 ) {
@@ -31,7 +32,6 @@ data class VoiceModel(
         val LibriTtsR = VoiceModel(
             pack = VexoModels.NeuralVoice,
             weightsFileName = "en_US-libritts_r-medium.onnx",
-            speakerId = 109,
             datasetLicence = "CC BY 4.0 (LibriTTS-R, openslr.org/141)",
         )
     }

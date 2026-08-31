@@ -34,6 +34,8 @@ data class SettingsUiState(
     val requireEnrolledVoice: Boolean,
     val hasVoiceProfile: Boolean,
     val voiceSampleCount: Int,
+    val voiceLabel: String,
+    val neuralReady: Boolean,
     val busy: Boolean,
     val status: String?,
 )
@@ -51,6 +53,9 @@ data class SettingsActions(
     val onEnrolVoice: () -> Unit,
     val onTestVoice: () -> Unit,
     val onDeleteVoice: () -> Unit,
+    val onPreviousVoice: () -> Unit,
+    val onNextVoice: () -> Unit,
+    val onPreviewVoice: () -> Unit,
 )
 
 @Composable
@@ -115,6 +120,35 @@ fun SettingsScreen(state: SettingsUiState, actions: SettingsActions) {
             Text(
                 "This costs battery and downloads a 15 MiB model on first use. Audio is matched " +
                     "on the device and discarded; nothing is recorded or uploaded.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        Section("Assistant voice") {
+            Text(
+                "Speaking as ${state.voiceLabel}.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = actions.onPreviousVoice, enabled = !state.busy) {
+                    Text("Previous")
+                }
+                OutlinedButton(onClick = actions.onNextVoice, enabled = !state.busy) {
+                    Text("Next")
+                }
+                Button(onClick = actions.onPreviewVoice, enabled = !state.busy) {
+                    Text("Preview")
+                }
+            }
+            Text(
+                if (state.neuralReady) {
+                    "The neural voice pack has 904 speakers; these ten are a shortlist. Preview " +
+                        "plays a sample and the choice is saved immediately."
+                } else {
+                    "The neural voice pack is not loaded yet, so a preview will use the system " +
+                        "voice and this setting will have no audible effect. It downloads on Wi-Fi " +
+                        "and applies from the next launch."
+                },
                 style = MaterialTheme.typography.bodySmall,
             )
         }

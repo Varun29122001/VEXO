@@ -3,6 +3,7 @@ package com.vexo.voice
 import android.content.Context
 import android.util.Log
 import com.vexo.models.ModelStore
+import com.vexo.settings.VexoSettings
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,7 @@ private const val WARM_UP_BUDGET_MILLIS = 1_500L
 class TextToSpeechManager(
     context: Context,
     private val store: ModelStore,
+    private val settings: VexoSettings,
     private val model: VoiceModel = VoiceModel.LibriTtsR,
 ) {
 
@@ -62,21 +64,30 @@ class TextToSpeechManager(
      * which lets the caller keep the surface (and therefore the process) alive until VEXO has
      * stopped talking.
      *
+     * [speakerId] defaults to the voice chosen in settings; the settings screen passes an explicit
+     * one to audition a voice before saving it.
+     *
      * The job belongs to an application-scoped scope, so abandoning it does not cancel speech.
      */
-    fun speak(text: String): Job = scope.launch {
+    fun speak(text: String, speakerId: Int = settings.speakerId.value): Job = scope.launch {
         val engine = withTimeoutOrNull(WARM_UP_BUDGET_MILLIS) { warmUp.await() }
         if (engine == null) {
             platform.speakAndAwait(text)
             return@launch
         }
         synthesis.withLock {
-            runCatching { engine.speak(text) }.getOrElse { error ->
+            runCatching { engine.speak(text, speakerId) }.getOrElse { error ->
                 Log.w(TAG, "Neural synthesis failed; falling back to the platform engine", error)
                 platform.speakAndAwait(text)
             }
         }
     }
+
+    /** Whether the neural engine is loaded, so settings can say why a preview sounds generic. */
+    fun isNeuralReady(): Boolean = neuralReady
+
+    @Volatile
+    private var neuralReady = false
 
     private suspend fun prepare() {
         if (store.isInstalled(model.pack)) {
@@ -85,6 +96,7 @@ class TextToSpeechManager(
             }
                 .onFailure { Log.w(TAG, "Could not open the neural voice pack", it) }
                 .getOrNull()
+            neuralReady = engine != null
             warmUp.complete(engine)
             return
         }

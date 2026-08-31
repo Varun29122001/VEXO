@@ -38,7 +38,7 @@ private const val BUFFER_SECONDS = 0.25f
  */
 class NeuralTextToSpeech private constructor(
     private val engine: OfflineTts,
-    private val speakerId: Int,
+    private val speakers: Int,
     private val audioManager: AudioManager,
 ) {
 
@@ -56,9 +56,11 @@ class NeuralTextToSpeech private constructor(
         .setAudioAttributes(attributes)
         .build()
 
-    fun speak(text: String) {
+    /** Speaks [text] using [speakerId], clamped to what the pack actually contains. */
+    fun speak(text: String, speakerId: Int) {
+        val speaker = speakerId.coerceIn(0, maxOf(0, speakers - 1))
         val startedAt = System.nanoTime()
-        val audio = engine.generate(text = text, sid = speakerId, speed = SPEECH_RATE)
+        val audio = engine.generate(text = text, sid = speaker, speed = SPEECH_RATE)
         val synthesisMillis = (System.nanoTime() - startedAt) / 1_000_000
 
         if (audio.samples.isEmpty()) {
@@ -77,7 +79,7 @@ class NeuralTextToSpeech private constructor(
             "synthesised ${audio.samples.size} samples " +
                 "(${durationMillis}ms audio) in ${synthesisMillis}ms " +
                 "rtf=${"%.3f".format(synthesisMillis.toDouble() / durationMillis)} " +
-                "peak=${"%.3f".format(peak)} for \"$text\"",
+                "peak=${"%.3f".format(peak)} speaker=$speaker for \"$text\"",
         )
 
         if (peak == 0f) {
@@ -173,16 +175,14 @@ class NeuralTextToSpeech private constructor(
             val loadMillis = (System.nanoTime() - startedAt) / 1_000_000
 
             val speakers = engine.numSpeakers()
-            val speaker = model.speakerId.coerceIn(0, maxOf(0, speakers - 1))
             Log.i(
                 TAG,
                 "loaded ${model.id} in ${loadMillis}ms " +
-                    "(threads=$threads, speakers=$speakers, speaker=$speaker, " +
-                    "sampleRate=${engine.sampleRate()})",
+                    "(threads=$threads, speakers=$speakers, sampleRate=${engine.sampleRate()})",
             )
             return NeuralTextToSpeech(
                 engine = engine,
-                speakerId = speaker,
+                speakers = speakers,
                 audioManager = context.getSystemService(AudioManager::class.java),
             )
         }

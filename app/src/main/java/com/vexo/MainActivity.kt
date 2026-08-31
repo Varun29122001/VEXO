@@ -1,6 +1,7 @@
 package com.vexo
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
@@ -58,6 +59,7 @@ class MainActivity : ComponentActivity() {
                 audioLevel = audioLevel,
                 dismiss = dismiss,
                 onClosed = { finish() },
+                onOpenSettings = ::openSettings,
             )
         }
 
@@ -116,6 +118,19 @@ class MainActivity : ComponentActivity() {
      */
     private suspend fun await(speaking: Job) {
         withTimeoutOrNull(SPEECH_TIMEOUT_MILLIS) { speaking.join() }
+    }
+
+    /**
+     * Long-pressing the orb opens settings. Reached this way, from the launcher icon's shortcut, or
+     * from the listening notification — VEXO has no home screen to put a button on.
+     */
+    private fun openSettings() {
+        Log.i(TAG, "Long press on the animation: opening settings")
+        startActivity(
+            Intent(this, SettingsActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        dismiss = true
     }
 
     private fun hasMicrophonePermission(): Boolean =

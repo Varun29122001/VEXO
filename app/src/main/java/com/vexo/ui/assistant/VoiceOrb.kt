@@ -19,9 +19,13 @@ private const val BASE_ROTATION_SPEED = 0.3f
 private const val VOICE_ROTATION_THRESHOLD = 0.05f
 
 /**
+ * **Animation version 1 — retained, not wired up.** `AssistantSurface` renders [SiriWave] instead.
+ * Left in place so the original look can be restored by swapping one call; nothing references it.
+ *
  * Renders the assistant orb. [audioLevel] is a normalised 0..1 voice amplitude: it accelerates
  * rotation and drives the shader's displacement, so at 0 the orb idles on its noise field alone.
  */
+@Suppress("unused")
 @Composable
 fun VoiceOrb(
     modifier: Modifier = Modifier,

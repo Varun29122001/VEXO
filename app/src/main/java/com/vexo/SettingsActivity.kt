@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import com.vexo.speaker.EnrolResult
 import com.vexo.speaker.VoiceRecorder
+import com.vexo.voice.VoiceOption
 import com.vexo.ui.settings.SettingsActions
 import com.vexo.ui.settings.SettingsScreen
 import com.vexo.ui.settings.SettingsUiState
@@ -65,6 +66,7 @@ class SettingsActivity : ComponentActivity() {
                     val epoch = permissionEpoch
                     val wakeWord by vexo.settings.wakeWordEnabled.collectAsState()
                     val requireVoice by vexo.settings.requireEnrolledVoice.collectAsState()
+                    val speakerId by vexo.settings.speakerId.collectAsState()
                     val profile = remember(epoch, busy) { vexo.speakerGate.profile() }
 
                     SettingsScreen(
@@ -76,6 +78,8 @@ class SettingsActivity : ComponentActivity() {
                             requireEnrolledVoice = requireVoice,
                             hasVoiceProfile = profile != null,
                             voiceSampleCount = profile?.sampleCount ?: 0,
+                            voiceLabel = VoiceOption.labelFor(speakerId),
+                            neuralReady = vexo.textToSpeech.isNeuralReady(),
                             busy = busy,
                             status = status,
                         ),
@@ -94,6 +98,9 @@ class SettingsActivity : ComponentActivity() {
                             onEnrolVoice = ::enrolVoice,
                             onTestVoice = ::testVoice,
                             onDeleteVoice = ::deleteVoice,
+                            onPreviousVoice = { stepVoice(-1) },
+                            onNextVoice = { stepVoice(+1) },
+                            onPreviewVoice = ::previewVoice,
                         ),
                     )
                 }
@@ -199,6 +206,25 @@ class SettingsActivity : ComponentActivity() {
         vexo.settings.setRequireEnrolledVoice(false)
         permissionEpoch++
         status = "Voice print deleted."
+    }
+
+    /**
+     * Moves through [VoiceOption.curated] and saves immediately, so stepping and pressing Preview
+     * always audition what is actually stored.
+     */
+    private fun stepVoice(delta: Int) {
+        val options = VoiceOption.curated
+        val current = options.indexOfFirst { it.speakerId == vexo.settings.speakerId.value }
+        val start = if (current >= 0) current else 0
+        val next = options[((start + delta) % options.size + options.size) % options.size]
+        vexo.settings.setSpeakerId(next.speakerId)
+        status = "Voice set to ${next.label}. Press Preview to hear it."
+    }
+
+    private fun previewVoice() {
+        val label = VoiceOption.labelFor(vexo.settings.speakerId.value)
+        status = "Previewing $label…"
+        vexo.textToSpeech.speak("This is how VEXO will sound. Opening Wi-Fi settings.")
     }
 
     private fun openOverlaySettings() {

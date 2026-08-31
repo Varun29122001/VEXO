@@ -1,10 +1,17 @@
 package com.vexo.ui.assistant
 
 /**
+ * **Animation version 1 — retained, not wired up.**
+ *
+ * Superseded by [SIRI_WAVE_SHADER] / [SIRI_FLUID_DOTS_SHADER] in `SiriWaveShader.kt`, which
+ * `AssistantSurface` now uses. Kept deliberately so the original look can be restored by pointing
+ * the surface back at [VoiceOrb]; nothing references it in the running app.
+ *
  * AGSL port of the orb fragment shader. Colors, noise field and lighting model are unchanged
  * from the original GLSL source; only type names and vector constructions are adapted to SkSL,
  * which is stricter than GLSL about mixing scalars and vectors.
  */
+@Suppress("unused")
 internal const val ORB_SHADER = """
 uniform float2 iResolution;
 uniform float iTime;
