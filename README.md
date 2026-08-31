@@ -116,13 +116,15 @@ app/src/main/java/com/vexo/
 └── ui/
     ├── assistant/
     │   ├── AssistantSurface.kt  Bottom-anchored container, enter/exit animation + dismiss gestures
-    │   ├── VoiceOrb.kt          RuntimeShader host, per-frame uniform updates via withFrameNanos
-    │   └── OrbShader.kt         AGSL fragment shader source (const ORB_SHADER)
+    │   ├── SiriWave.kt          Version 2: RuntimeShader host, Wave | FluidDots
+    │   ├── SiriWaveShader.kt    Version 2 AGSL sources
+    │   ├── VoiceOrb.kt          Version 1, retained and unused
+    │   └── OrbShader.kt         Version 1 AGSL source, retained and unused
     └── settings/
         └── SettingsScreen.kt    Stateless Compose screen: UI state in, actions out
 ```
 
-30 Kotlin source files in `main`, 5 in `test`.
+32 Kotlin source files in `main`, 5 in `test`.
 
 ## Layer notes
 
@@ -219,6 +221,31 @@ neural path uses the same `1.05` rate so the two sound alike.
 It answers on first run, whenever the pack is missing, whenever the model fails to load, and
 whenever synthesis throws. It is a real code path, not a formality — see the measurements below.
 
+### Choosing a voice
+
+`libritts_r` is multi-speaker — 904 of them — so which voice VEXO uses is a saved setting rather
+than a constant. `OfflineTts.generate` takes the speaker per call, so switching costs nothing and
+needs no model reload.
+
+The pack's `speaker_id_map` maps each `sid` to the LibriSpeech speaker it came from, and LibriSpeech
+publishes a gender per speaker. Cross-referencing the two gives **474 male and 430 female** voices,
+and settles what the original default actually was:
+
+```
+sid 109  ->  LibriSpeech speaker 6233  ->  female ("Gen Jones")
+```
+
+That was picked arbitrarily and was the reason VEXO spoke with a woman's voice. `VoiceOption.curated`
+now holds a verified shortlist of six male and four female speakers, each carrying the corpus speaker
+id so the choice stays traceable, and the default is male.
+
+Settings shows the current voice with Previous / Next / Preview. Stepping saves immediately, so
+Preview always plays what is actually stored. Quality varies noticeably between LibriTTS speakers —
+that is exactly why there is a preview rather than a promise.
+
+If the neural pack has not loaded, the screen says so, because a preview would otherwise be the
+system voice and the setting would appear to do nothing.
+
 ### Measured synthesis cost
 
 Measured on the running emulator (`sdk_gphone16k_x86_64`, x86_64, 4 threads), read from
@@ -309,6 +336,39 @@ Listening for a wake phrase        mic ACTIVE   ← overlay closed
 is `START_NOT_STICKY`, a crash or force-stop would otherwise leave the listener dead until the next
 reboot; this way any use of VEXO brings it back.
 
+**You cannot say the wake phrase and the request in one breath, and this is the first thing that
+will surprise anyone used to Siri.** Say "Hi VEXO", wait for the orb, *then* speak. Anything said in
+between is lost.
+
+The reason is structural rather than a tuning problem. Siri analyses audio on a low-power always-on
+processor into a ring buffer, and that buffered audio — wake phrase and everything after it — is
+carried into recognition, which is why continuous phrasing works. VEXO keeps an equivalent two-second
+ring buffer, but cannot use it the same way: the platform `SpeechRecognizer` accepts no raw PCM, only
+a request to start listening for itself. So the wake path is necessarily:
+
+```
+wake fires ──► release mic ──► launch overlay ──► SpeechRecognizer starts fresh
+             └──────────── roughly 0.4-1.5 s, nothing is heard ────────────┘
+```
+
+Note `CommandParser` still strips a leading wake phrase, and that path does work — it covers tapping
+the icon and saying "hey vexo open settings" as one sentence, where a single recogniser pass captures
+the lot.
+
+Closing the gap properly means owning the audio end to end: replacing `SpeechRecognizer` with
+sherpa-onnx's streaming recogniser, which *can* be fed the ring buffer, and using VAD to decide when
+the user stopped. That would also remove VEXO's last cloud dependency. It is a real change, not a
+tweak — another model and a rewrite of `AssistantSession`'s input — and it has not been done.
+
+**Third-party apps have no access to the low-power path.** Android exposes DSP keyphrase detection
+through `AlwaysOnHotwordDetector`, but AOSP's Android 12 notes are explicit that it "is intended for
+use by Assistant apps with system-level privileges" and that "the API was removed from the public
+surface", so non-system apps cannot even compile against it. AOSP names the alternative directly:
+such apps "might need to capture and process the audio input stream using a native library". That is
+exactly what `WakeWordDetector` does, so VEXO's approach is the documented route rather than a
+shortcut — but it also means detection runs on the application processor, which is where the battery
+question comes from.
+
 ### Voice recognition
 
 Speaker verification gates the wake word, not the whole app. That is not a compromise but a
@@ -343,32 +403,130 @@ restarts it afterwards.
 ### Settings
 
 `SettingsActivity` is VEXO's only screen and is deliberately not a launcher entry — the icon opens
-the assistant. It is reached from the icon's long-press shortcut (`res/xml/shortcuts.xml`) or by
-tapping the listening notification. `SettingsScreen` is a stateless composable taking a
-`SettingsUiState` and a `SettingsActions`, so the activity owns all the state and the screen stays
-a pure function of it.
+the assistant. There are three ways in:
+
+| Route | When it works |
+| --- | --- |
+| Long-press the orb on the assistant overlay | Always, and this is the reliable one |
+| Long-press the launcher icon → "Settings" | Needs a launcher that honours static shortcuts |
+| Tap the "VEXO is listening" notification | Only once the wake word is already on |
+
+The overlay gesture exists because the other two are conditional, and enrolling a voice on a fresh
+install has to be possible without either. A tap on the orb still dismisses; only a long press opens
+settings, and a long press on empty space around the orb dismisses as before.
+
+For development, the screen can also be opened directly:
+
+```bat
+adb shell am start -n com.vexo/.SettingsActivity
+```
+
+`SettingsScreen` is a stateless composable taking a `SettingsUiState` and a `SettingsActions`, so the
+activity owns all the state and the screen stays a pure function of it.
 
 This is the one place VEXO uses Material 3. The assistant overlay is still shader plus `foundation`.
 
-### The orb
+### The animation
 
-`VoiceOrb` compiles `ORB_SHADER` into a `RuntimeShader` and drives it from a `withFrameNanos`
-loop, pushing six uniforms per frame: `iResolution`, `iTime`, `hue`, `rot`, `hover`,
-`hoverIntensity`. `audioLevel` accelerates rotation only above a `0.05` threshold, so at silence
-the orb idles on its animated noise field alone.
+Two versions live in the codebase. **Version 2 is what runs**; version 1 is retained, marked
+`@Suppress("unused")`, and reachable again by swapping one call in `AssistantSurface`.
 
-`OrbShader.kt` is an AGSL port of a GLSL original. Colours, the simplex noise field, and the
-two-term lighting model are unchanged; only type names and vector construction were adapted,
-because SkSL is stricter than GLSL about mixing scalars and vectors.
+| | Version 1 — `VoiceOrb` + `OrbShader` | Version 2 — `SiriWave` + `SiriWaveShader` |
+| --- | --- | --- |
+| Look | Rotating orb, simplex noise field | Siri waveform, chromatic aberration |
+| Surface | 148 dp square | full width × 220 dp, frameless |
+| Variants | one | `Wave`, `FluidDots` |
+| Wired up | no | **yes** (`Wave`) |
 
-`RuntimeShader` is why `minSdk` is 33 — that is the floor for AGSL.
+**`Wave` wants a wide surface; `FluidDots` wants a square one.** They do not agree, because they
+normalise differently: the wave divides by the aspect ratio and so stretches one waveform across
+whatever width it is given, while the dots normalise by `min(res.x, res.y)` and render small in a wide
+band. The wave was square-only to begin with — the GLSL source is written for a square canvas, and a
+first full-width attempt did look wrong — but that turned out to be a handful of constants rather than
+a constraint, and they are now fixed. See the deviations below.
+
+**There is no panel and no scrim.** The source component draws on opaque `bg-black`, so `SiriWave` can
+draw a soft radial dimming behind the glow (`scrimAlpha`) for light backgrounds. It is **off by
+default**: over dark content the gradient reads as a dim circular blob behind the wave, which is worse
+than the problem it solves. Raise it if the wave has to stand over white content; `background =
+Color.Black` with a `cornerRadius` restores the framed panel of the original.
+
+Both are AGSL ported from GLSL originals and driven the same way: a `withFrameNanos` loop pushing
+uniforms into a `RuntimeShader`, which is why `minSdk` is 33 — that is the floor for AGSL.
+
+Version 2 takes three uniforms — `iResolution`, `iTime`, `iAudio`. Two deviations from the GLSL source
+are forced by the target:
+
+- **Alpha comes from the brightest channel.** The originals return `vec4(col, 1.0)` because they draw
+  on an opaque black canvas. VEXO's window is translucent and floats over whatever app is in front,
+  so returning opaque would paint a black slab across the bottom of the screen. Colour is returned
+  premultiplied with alpha taken from brightness, so black is transparent — the same trick version 1
+  used via `extractAlpha`.
+- **`iAudio` folds into the existing band levels.** A purely time-driven waveform would be a
+  functional regression from the orb, which reacted to your voice. The wave shader already synthesises
+  fake `low`/`mid`/`high` from sines; real microphone amplitude is merged with `max()`, so at
+  `iAudio = 0` nothing in the idle animation depends on the microphone and speech only ever adds
+  movement.
+
+Four more are forced by the surface. Drawn into a band as wide as the screen, several of the source's
+constants stop meaning what they meant in a square:
+
+- **The waveform is normalised by aspect ratio** — `sin(xN * FREQ)` rather than `sin(p.x * FREQ)`.
+  `p.x` grows with the aspect ratio, so a wide surface fitted extra cycles in and the lens became a
+  wiggly ribbon.
+- **Horizontal and vertical scale are separate** — `SPAN = 0.9` and `VSCALE = 0.6` in place of one
+  `WAVE_SCALE = 0.6`, which set the span and the crest height together. `SPAN` puts the amplitude
+  envelope's zero exactly on the left and right edges, so the wave fills the band; `VSCALE` keeps the
+  source's crest height in pixels, which leaves the loudest crest at 0.46 of the half-height, inside
+  the 0.6 where the vertical edge mask begins. Before the split, full-level speech clipped against
+  that mask instead of growing.
+- **The side falloff is the amplitude envelope, not a Gaussian.** The source multiplied brightness by
+  `exp(-(xN * 1.7)^2)`, which in a wide band died out around 40 % of the width — well before the
+  envelope it was meant to accompany — and where it had not died, the collapsing envelope left every
+  coloured curve and the band fill sitting on `y = 0`: a straight bright line running out to both
+  screen edges. Tying the falloff to the envelope (`pow(env, 1.5)`) makes brightness and amplitude
+  vanish together, so the wave tapers to a point instead of a line.
+- **Eight chromatic samples rather than four**, with `spectral4(int)` generalised to
+  `spectral(float)`. At an `ABERRATION` of 2.6 radians four ribbons are too far apart for any pixel to
+  see all of them, so a band this wide separated into discrete magenta and green stripes instead of a
+  white core with coloured fringes.
+
+`AMPLITUDE`, `FREQ` and `ABER_FREQ` are retuned for the wider surface — at the source's `FREQ = 1.1`
+the sine spans less than half a cycle across the full width, so the wave read as one flat arch rather
+than a wave. Everything else — the spectral split, the metaball fields, the settle curves, the band
+fill — is transcribed as-is. Only type names (`vec2` → `float2`, `mat2` → `float2x2`) and the entry
+point (`mainImage` → `half4 main`) changed, because SkSL is stricter than GLSL about building vectors
+from scalars. `SPECTRAL` was folded to a literal because SkSL wants `const` initialisers to be constant
+expressions.
+
+Those values were chosen against a numpy transcription of the shader compositing over a device
+screenshot rather than by rebuilding for each guess, then confirmed on the emulator. Measured from the
+rendered alpha, the glow spans 83-85 % of the width and tapers to nothing, against 72 % before with a
+straight bright streak reaching both edges.
+
+A shader that fails to compile is caught at construction and logged rather than crashing: the overlay
+then renders nothing and VEXO still listens and answers.
+
+`FluidDots` normalises by the shorter axis, so it wants a square surface; in the wide band it renders
+correctly but small. Both variants were confirmed to compile and draw on device.
 
 ### Surface and window
 
-`AssistantSurface` is bottom-anchored, 148 dp, 32 dp above the navigation bar inset. Enter is
-260 ms (slide + fade + scale from 0.85); exit is 200 ms, and `onClosed` fires only after the exit
-animation finishes so the window never disappears mid-frame. Both a tap anywhere and the back
-gesture set `closing`.
+`AssistantSurface` is bottom-anchored: version 2 is a full-width band 220 dp tall sitting flush with
+the bottom edge, with no navigation-bar inset. That looks wrong written down but is correct — the wave
+is drawn centred in the band and the shader fades it out before every edge, so the lower part draws
+nothing and there is nothing to keep clear of. Any inset there only pushes the visible glow up the
+screen. The wave's centre line therefore sits about half the band's height above the bottom, which
+makes the height the knob for moving it up or down as well as for how big it is.
+
+Enter is 260 ms (slide + fade + scale from 0.85); exit is 200 ms, and `onClosed` fires only after the
+exit animation finishes so the window never disappears mid-frame. Back dismisses.
+
+**Gestures use one detector for the whole surface, not one per element.** A tap anywhere dismisses; a
+long press opens settings only if it lands in the wave's band, which is hit-tested from the press
+position. Nested `detectTapGestures` were tried first and do not work here: the outer one wins a long
+press even when the inner one is directly under the finger, so the long press dismissed instead of
+opening settings.
 
 `Theme.Vexo` extends the platform `android:Theme.Material.NoActionBar` with a translucent,
 transparent, undimmed, animation-free window. Note the app depends on Compose `foundation`,
@@ -581,6 +739,13 @@ false-accept and false-reject rates, and battery cost are all unmeasured.
 - **The wake word may not fire, or may fire too often.** `keywordsScore` and `keywordsThreshold` are
   left at the library defaults (`1.5` and `0.25`) and have not been tuned. "Vexo" is not an English
   word, so the spotter is working from a BPE spelling of a name it never saw in training.
+- **The wake phrase and the request cannot run together.** There is a ~0.4-1.5 s dead window between
+  the wake word firing and the recogniser going live, because the platform recogniser cannot be handed
+  the buffered audio. Say the phrase, wait for the orb, then speak. See the wake word section for why,
+  and what fixing it properly would take.
+- **Bare "Vexo" is not a wake phrase.** Only the four two-word forms are. A single short word at the
+  library's default threshold false-fires on ordinary conversation. `CommandParser` does still accept
+  a bare "vexo" prefix on an already-recognised request, so the two lists differ deliberately.
 - **The speaker threshold is a guess.** `0.5` cosine similarity was chosen on general knowledge of
   CAM++ embeddings, not from measurements on your voice. Expect to change it.
 - **Battery cost is unknown.** A zipformer on one thread plus an open microphone is cheap in
@@ -598,8 +763,10 @@ Neural TTS:
   or Play Asset Delivery.
 - **Audio focus is requested but not monitored.** VEXO ducks other audio while speaking, but does not
   listen for focus loss, so it will not stop early if something more important starts talking.
-- **The speaker id is unvalidated.** `libritts_r` has 904 speakers and `speakerId = 109` was picked
-  without listening to the alternatives. It is one number in `VoiceModel`.
+- **The speaker id is unvalidated.** `libritts_r` has 904 speakers and only ten are on the curated
+  shortlist. The genders are verified against LibriSpeech metadata, but nobody has listened to how
+  good each one sounds — hence Preview. If none of the ten suits you, any `sid` in `0..903` works;
+  add it to `VoiceOption.curated`.
 - **Only measured on an emulator.** Every timing above came from `sdk_gphone16k_x86_64`.
 
 Pre-existing:
@@ -609,6 +776,8 @@ Pre-existing:
 - `SpeechRecognitionManager.isAvailable()` is public but never called; `listen()` performs its own
   availability check inline.
 - `VoiceOrb`'s `hue` parameter is always the default `0f`; no caller varies it.
+- Animation version 1 (`VoiceOrb`, `OrbShader`) is retained but unreferenced, so it is dead weight
+  in the APK until either deleted or wired back up.
 - No `androidTest` source set, and `ActionManager` has no test coverage.
 - Release builds are unoptimized and unsigned by configuration (see above).
 - The command vocabulary is a fixed alias map. Requests outside "open settings panel" and
