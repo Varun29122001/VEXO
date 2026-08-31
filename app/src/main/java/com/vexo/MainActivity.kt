@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 
 /**
  * The assistant surface. VEXO has no home screen: this activity listens for one request,
- * performs it, then finishes.
+ * performs it, answers out loud, then finishes.
  */
 class MainActivity : ComponentActivity() {
 
@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
     private val requestMicrophone = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) startSession() else finishWith("VEXO needs microphone access to listen")
+        if (granted) startSession() else respond("I need microphone access to listen")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,24 +59,27 @@ class MainActivity : ComponentActivity() {
 
     private fun startSession() {
         lifecycleScope.launch {
-            when (val result = vexo.assistantSession.run()) {
-                ActionResult.Performed -> Unit
-                ActionResult.NotUnderstood -> toast("VEXO can't do that yet")
-                is ActionResult.Failed -> toast(result.reason)
+            val result = vexo.assistantSession.run()
+            vexo.textToSpeech.speak(result.spoken)
+            when (result) {
+                is ActionResult.Performed -> Unit
+                is ActionResult.NotUnderstood -> toast("Heard: \"${result.heard}\"")
+                is ActionResult.Failed -> toast(result.diagnostic ?: result.spoken)
             }
             dismiss = true
         }
     }
 
-    private fun hasMicrophonePermission(): Boolean =
-        checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-
-    private fun finishWith(message: String) {
+    private fun respond(message: String) {
+        vexo.textToSpeech.speak(message)
         toast(message)
         dismiss = true
     }
 
+    private fun hasMicrophonePermission(): Boolean =
+        checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
     private fun toast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 }

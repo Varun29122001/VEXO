@@ -7,5 +7,5 @@ sealed interface SpeechEvent {
 
     data class Transcript(val text: String) : SpeechEvent
 
-    data class Failed(val reason: String) : SpeechEvent
+    data class Failed(val reason: String, val code: Int) : SpeechEvent
 }
