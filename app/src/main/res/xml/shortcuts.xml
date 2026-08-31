@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  VEXO's launcher icon opens the assistant, not a home screen, so settings would otherwise be
+  unreachable. A static shortcut puts it behind a long-press on the icon.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="settings"
+        android:shortcutLongLabel="@string/settings_shortcut_long"
+        android:shortcutShortLabel="@string/settings_shortcut_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.vexo.SettingsActivity"
+            android:targetPackage="com.vexo" />
+    </shortcut>
+</shortcuts>

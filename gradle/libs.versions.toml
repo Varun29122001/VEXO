@@ -7,6 +7,10 @@ lifecycleRuntimeKtx = "2.11.0"
 composeBom = "2026.02.01"
 coroutines = "1.10.2"
 junit = "4.13.2"
+# Neural TTS: JitPack-published AAR bundling onnxruntime + the sherpa-onnx JNI layer.
+sherpaOnnx = "v1.13.5"
+# Only needed to unpack the .tar.bz2 voice pack; Android has no bzip2 decoder.
+commonsCompress = "1.28.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -14,10 +18,13 @@ androidx-activity-compose = { group = "androidx.activity", name = "activity-comp
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-animation = { group = "androidx.compose.animation", name = "animation" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+sherpa-onnx = { group = "com.github.k2-fsa.sherpa-onnx", name = "sherpa-onnx", version.ref = "sherpaOnnx" }
+commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -38,4 +38,23 @@ class AssistantManagerTest {
         assertEquals(AssistantState.Idle, manager.state.value)
         assertEquals(0f, manager.audioLevel.value, 0f)
     }
+
+    @Test
+    fun `microphone is not claimed until a session starts`() {
+        assertEquals(false, manager.sessionActive.value)
+
+        manager.setSessionActive(true)
+        assertEquals(true, manager.sessionActive.value)
+    }
+
+    @Test
+    fun `reset releases the microphone claim`() {
+        // The wake word listener stays paused for as long as this is true, so a reset that left it
+        // set would silently kill the wake word until the process restarted.
+        manager.setSessionActive(true)
+
+        manager.reset()
+
+        assertEquals(false, manager.sessionActive.value)
+    }
 }

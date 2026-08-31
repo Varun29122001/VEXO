@@ -18,6 +18,19 @@ android {
         versionName = "1.0"
     }
 
+    // The sherpa-onnx native libraries dominate the APK (~30 MB per ABI, most of it
+    // libonnxruntime.so), so ship one APK per ABI rather than one fat APK carrying four copies.
+    // Only 64-bit ABIs are listed: every device on minSdk 33 is 64-bit. A release should ship an
+    // App Bundle, which performs this split automatically.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = false
+        }
+    }
+
     buildTypes {
         release {
             optimization {
@@ -39,9 +52,13 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.compose.foundation)
+    // Only the settings screen uses Material; the assistant overlay stays shader + foundation.
+    implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.sherpa.onnx)
+    implementation(libs.commons.compress)
     testImplementation(libs.junit)
 }
