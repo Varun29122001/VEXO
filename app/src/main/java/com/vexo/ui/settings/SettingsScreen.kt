@@ -1,12 +1,19 @@
 package com.vexo.ui.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -34,9 +41,14 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -108,14 +120,16 @@ fun SettingsScreen(state: SettingsUiState, actions: SettingsActions) {
 
         AnimatedVisibility(
             visible = state.status != null,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically(),
+            enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) +
+                expandVertically(spring(stiffness = Spring.StiffnessMediumLow)),
+            exit = fadeOut(tween(200)) + shrinkVertically(tween(200)),
         ) {
             state.status?.let { message ->
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp),
+                        .padding(bottom = 16.dp)
+                        .shadow(2.dp, CardShape),
                     shape = CardShape,
                     color = Color(0xFF2C2C2E),
                 ) {
@@ -255,7 +269,9 @@ private fun SectionFooter(text: String) {
 @Composable
 private fun GroupedCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(1.dp, CardShape),
         shape = CardShape,
         color = CardBackground,
     ) {
@@ -281,10 +297,32 @@ private fun PermissionItem(
     granted: Boolean,
     onGrant: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && !granted) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "permissionScale",
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (!granted) Modifier.clickable(onClick = onGrant) else Modifier)
+            .scale(scale)
+            .then(
+                if (!granted) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onGrant,
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -313,6 +351,17 @@ private fun ToggleItem(
     enabled: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    val labelAlpha by animateFloatAsState(
+        targetValue = if (enabled) 1f else 0.4f,
+        animationSpec = tween(200),
+        label = "labelAlpha",
+    )
+    val subtitleAlpha by animateFloatAsState(
+        targetValue = if (enabled) 1f else 0.4f,
+        animationSpec = tween(200),
+        label = "subtitleAlpha",
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -327,12 +376,12 @@ private fun ToggleItem(
             Text(
                 label,
                 fontSize = 16.sp,
-                color = if (enabled) Color.White else Color.White.copy(alpha = 0.4f),
+                color = Color.White.copy(alpha = labelAlpha),
             )
             Text(
                 subtitle,
                 fontSize = 13.sp,
-                color = if (enabled) TextSecondary else TextSecondary.copy(alpha = 0.4f),
+                color = TextSecondary.copy(alpha = subtitleAlpha),
             )
         }
         Switch(
@@ -358,14 +407,36 @@ private fun ActionItem(
     color: Color = AccentBlue,
     onClick: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && enabled) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "actionScale",
+    )
+    val textAlpha by animateFloatAsState(
+        targetValue = if (enabled) 1f else 0.4f,
+        animationSpec = tween(200),
+        label = "textAlpha",
+    )
+
     Text(
         label,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
+            .scale(scale)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick,
+            )
             .padding(horizontal = 16.dp, vertical = 13.dp),
         fontSize = 16.sp,
-        color = if (enabled) color else color.copy(alpha = 0.4f),
+        color = color.copy(alpha = textAlpha),
     )
 }
 
@@ -379,6 +450,12 @@ private fun VoiceSelector(
     onNext: () -> Unit,
     onPreview: () -> Unit,
 ) {
+    val iconAlpha by animateFloatAsState(
+        targetValue = if (enabled) 1f else 0.4f,
+        animationSpec = tween(200),
+        label = "iconAlpha",
+    )
+
     Column {
         Row(
             modifier = Modifier
@@ -391,7 +468,7 @@ private fun VoiceSelector(
                 Icon(
                     Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                     contentDescription = "Previous voice",
-                    tint = if (enabled) AccentBlue else TextSecondary.copy(alpha = 0.4f),
+                    tint = AccentBlue.copy(alpha = iconAlpha),
                 )
             }
             Text(
@@ -405,7 +482,7 @@ private fun VoiceSelector(
                 Icon(
                     Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = "Next voice",
-                    tint = if (enabled) AccentBlue else TextSecondary.copy(alpha = 0.4f),
+                    tint = AccentBlue.copy(alpha = iconAlpha),
                 )
             }
         }
@@ -430,7 +507,12 @@ private fun VoiceProfileContent(state: SettingsUiState, actions: SettingsActions
                 fontSize = 16.sp,
                 color = if (state.hasVoiceProfile) Color.White else TextSecondary,
             )
-            if (state.hasVoiceProfile) {
+            AnimatedVisibility(
+                visible = state.hasVoiceProfile,
+                enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) +
+                    androidx.compose.animation.scaleIn(spring(stiffness = Spring.StiffnessMediumLow)),
+                exit = fadeOut(tween(150)) + androidx.compose.animation.scaleOut(tween(150)),
+            ) {
                 Icon(
                     Icons.Filled.Check,
                     contentDescription = "Enrolled",
@@ -445,20 +527,27 @@ private fun VoiceProfileContent(state: SettingsUiState, actions: SettingsActions
             enabled = state.microphoneGranted && !state.busy,
             onClick = actions.onEnrolVoice,
         )
-        if (state.hasVoiceProfile) {
-            CardDivider()
-            ActionItem(
-                label = "Test",
-                enabled = state.microphoneGranted && !state.busy,
-                onClick = actions.onTestVoice,
-            )
-            CardDivider()
-            ActionItem(
-                label = "Delete Voice Print",
-                enabled = !state.busy,
-                color = AccentRed,
-                onClick = actions.onDeleteVoice,
-            )
+        AnimatedVisibility(
+            visible = state.hasVoiceProfile,
+            enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) +
+                expandVertically(spring(stiffness = Spring.StiffnessMediumLow)),
+            exit = fadeOut(tween(150)) + shrinkVertically(tween(150)),
+        ) {
+            Column {
+                CardDivider()
+                ActionItem(
+                    label = "Test",
+                    enabled = state.microphoneGranted && !state.busy,
+                    onClick = actions.onTestVoice,
+                )
+                CardDivider()
+                ActionItem(
+                    label = "Delete Voice Print",
+                    enabled = !state.busy,
+                    color = AccentRed,
+                    onClick = actions.onDeleteVoice,
+                )
+            }
         }
     }
 }

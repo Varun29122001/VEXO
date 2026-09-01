@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+    ALTERNATIVE 1: Electric Blue Premium
+    Style: Modern tech with electric blue glow
+    Inspired by: Apple Music, iOS App Icons
+    -->
+
+    <!-- Deep shadow -->
+    <path
+        android:pathData="M54,72 L35,36 L42,36 L54,60 L66,36 L73,36 Z"
+        android:fillColor="#000000"
+        android:fillAlpha="0.5" />
+
+    <!-- Electric blue outer glow -->
+    <path
+        android:pathData="M54,70 L36,38 L43,38 L54,59 L65,38 L72,38 Z"
+        android:fillColor="#0A84FF"
+        android:fillAlpha="0.25" />
+
+    <!-- Main V with blue-white gradient -->
+    <path
+        android:pathData="M54,68 L38,38 L44,38 L54,58 L64,38 L70,38 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="38"
+                android:endX="54"
+                android:endY="68"
+                android:type="linear">
+                <item android:color="#FFFFFF" android:offset="0.0" />
+                <item android:color="#E3F2FD" android:offset="0.3" />
+                <item android:color="#90CAF9" android:offset="0.7" />
+                <item android:color="#42A5F5" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Chrome highlights -->
+    <path
+        android:pathData="M40,40 L48,66 L46,66 L40,44 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.6" />
+
+    <!-- Electric accent strokes -->
+    <path
+        android:pathData="M38,38 L54,68 M54,68 L70,38"
+        android:strokeWidth="1.5"
+        android:strokeColor="#0A84FF"
+        android:strokeAlpha="0.6"
+        android:fillColor="#00000000" />
+
+    <!-- Specular highlight -->
+    <path
+        android:pathData="M54,66 L52,64 L54,62 L56,64 Z"
+        android:fillColor="#FFFFFF" />
+</vector>
