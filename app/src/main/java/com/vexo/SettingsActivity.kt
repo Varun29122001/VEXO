@@ -10,8 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.activity.SystemBarStyle
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +23,7 @@ import com.vexo.voice.VoiceOption
 import com.vexo.ui.settings.SettingsActions
 import com.vexo.ui.settings.SettingsScreen
 import com.vexo.ui.settings.SettingsUiState
+import com.vexo.ui.theme.VexoTheme
 import com.vexo.wake.WakeWordService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -57,53 +57,53 @@ class SettingsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
 
         setContent {
-            MaterialTheme {
-                Surface {
-                    // Reading permissionEpoch here makes permission changes recompose the screen.
-                    val epoch = permissionEpoch
-                    val wakeWord by vexo.settings.wakeWordEnabled.collectAsState()
-                    val requireVoice by vexo.settings.requireEnrolledVoice.collectAsState()
-                    val speakerId by vexo.settings.speakerId.collectAsState()
-                    val profile = remember(epoch, busy) { vexo.speakerGate.profile() }
+            VexoTheme {
+                val epoch = permissionEpoch
+                val wakeWord by vexo.settings.wakeWordEnabled.collectAsState()
+                val requireVoice by vexo.settings.requireEnrolledVoice.collectAsState()
+                val speakerId by vexo.settings.speakerId.collectAsState()
+                val profile = remember(epoch, busy) { vexo.speakerGate.profile() }
 
-                    SettingsScreen(
-                        state = SettingsUiState(
-                            microphoneGranted = granted(Manifest.permission.RECORD_AUDIO),
-                            notificationsGranted = granted(Manifest.permission.POST_NOTIFICATIONS),
-                            overlayGranted = Settings.canDrawOverlays(this),
-                            wakeWordEnabled = wakeWord,
-                            requireEnrolledVoice = requireVoice,
-                            hasVoiceProfile = profile != null,
-                            voiceSampleCount = profile?.sampleCount ?: 0,
-                            voiceLabel = VoiceOption.labelFor(speakerId),
-                            neuralReady = vexo.textToSpeech.isNeuralReady(),
-                            busy = busy,
-                            status = status,
-                        ),
-                        actions = SettingsActions(
-                            onRequestMicrophone = {
-                                requestMicrophone.launch(Manifest.permission.RECORD_AUDIO)
-                            },
-                            onRequestNotifications = {
-                                requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            },
-                            onRequestOverlay = ::openOverlaySettings,
-                            onWakeWordChanged = ::setWakeWord,
-                            onRequireEnrolledVoiceChanged = {
-                                vexo.settings.setRequireEnrolledVoice(it)
-                            },
-                            onEnrolVoice = ::enrolVoice,
-                            onTestVoice = ::testVoice,
-                            onDeleteVoice = ::deleteVoice,
-                            onPreviousVoice = { stepVoice(-1) },
-                            onNextVoice = { stepVoice(+1) },
-                            onPreviewVoice = ::previewVoice,
-                        ),
-                    )
-                }
+                SettingsScreen(
+                    state = SettingsUiState(
+                        microphoneGranted = granted(Manifest.permission.RECORD_AUDIO),
+                        notificationsGranted = granted(Manifest.permission.POST_NOTIFICATIONS),
+                        overlayGranted = Settings.canDrawOverlays(this),
+                        wakeWordEnabled = wakeWord,
+                        requireEnrolledVoice = requireVoice,
+                        hasVoiceProfile = profile != null,
+                        voiceSampleCount = profile?.sampleCount ?: 0,
+                        voiceLabel = VoiceOption.labelFor(speakerId),
+                        neuralReady = vexo.textToSpeech.isNeuralReady(),
+                        busy = busy,
+                        status = status,
+                    ),
+                    actions = SettingsActions(
+                        onRequestMicrophone = {
+                            requestMicrophone.launch(Manifest.permission.RECORD_AUDIO)
+                        },
+                        onRequestNotifications = {
+                            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        },
+                        onRequestOverlay = ::openOverlaySettings,
+                        onWakeWordChanged = ::setWakeWord,
+                        onRequireEnrolledVoiceChanged = {
+                            vexo.settings.setRequireEnrolledVoice(it)
+                        },
+                        onEnrolVoice = ::enrolVoice,
+                        onTestVoice = ::testVoice,
+                        onDeleteVoice = ::deleteVoice,
+                        onPreviousVoice = { stepVoice(-1) },
+                        onNextVoice = { stepVoice(+1) },
+                        onPreviewVoice = ::previewVoice,
+                    ),
+                )
             }
         }
     }

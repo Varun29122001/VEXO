@@ -30,9 +30,8 @@ package com.vexo.ui.assistant
  * 5. **The side falloff is the amplitude envelope, not a Gaussian**, so brightness and amplitude
  *    reach zero at the same place and the wave tapers to a point rather than to a straight line.
  *
- * 6. **Eight chromatic samples rather than four**, and `spectral4(int)` generalised to
- *    `spectral(float)` to allow it, because four ribbons this far apart read as separate magenta and
- *    green bands instead of a white core with coloured fringes.
+ * 6. **Six chromatic samples** and `spectral(float)` walks a blue → purple → pink → amber palette
+ *    for a premium chromatic spread. Six is enough for smooth blending without averaging to white.
  *
  * Each is explained at the constant it belongs to. `AMPLITUDE`, `FREQ` and `ABER_FREQ` are retuned
  * for the wider surface; everything else — the spectral split, the metaball fields, the settle
@@ -51,7 +50,7 @@ const float PI = 3.14159265359;
 const float AMPLITUDE   = 0.40;
 const float FREQ        = 2.2;
 const float ABER_FREQ   = 2.0;
-const float SPEED       = 2.4;
+const float SPEED       = 2.0;
 /*
  * Horizontal and vertical scale, split apart from the source's single `WAVE_SCALE = 0.6`, because
  * VEXO draws the wave into a wide band rather than the square the GLSL was written for. One scale
@@ -67,9 +66,9 @@ const float SPEED       = 2.4;
  */
 const float SPAN        = 0.9;
 const float VSCALE      = 0.6;
-const float ABERRATION  = 2.6;
-const float THICKNESS   = 3.0;
-const float INTENSITY   = 2.0;
+const float ABERRATION  = 2.8;
+const float THICKNESS   = 3.5;
+const float INTENSITY   = 2.2;
 /*
  * Exponent on the amplitude envelope, used as the horizontal brightness falloff. The source used a
  * separate Gaussian, `exp(-(xN * 1.7)^2)`, which is wrong for a wide band in both directions: it
@@ -83,10 +82,10 @@ const float INTENSITY   = 2.0;
 const float SIDE_FADE   = 1.5;
 const float EDGE_MASK   = 0.4;
 const float EDGE_INSET  = 0.0;
-const float BAND_FILL   = 30000.0;
-const float BAND_THICK  = 0.08;
-const float SOFTNESS    = 2.5;
-const float LOW_AMP     = 6.0;
+const float BAND_FILL   = 35000.0;
+const float BAND_THICK  = 0.09;
+const float SOFTNESS    = 3.0;
+const float LOW_AMP     = 7.0;
 const float LOW_INT     = 1.5;
 const float MID_ABER    = 0.8;
 const float MID_ABAMP   = 0.05;
@@ -97,31 +96,26 @@ const float HIGH_ABAMP  = 0.06;
 const float RESOLVED    = 1.0;
 const float UNRES_SCALE = 0.14;
 
-/*
- * Added for VEXO. How much amplitude real speech adds on top of the idle animation. The source only
- * had `LOW_AMP`, worth 0.06 at full level, which is barely visible; this makes talking obvious
- * without pushing the crest into EDGE_MASK — see VSCALE.
- */
-const float AUDIO_AMP = 0.30;
+const float AUDIO_AMP = 0.35;
 
 /*
- * Samples across the chromatic spread. The source took 4, which on a band this wide separates into
- * discrete magenta and green ribbons rather than a white core with coloured fringes: at an
- * ABERRATION of 2.6 radians the four curves are too far apart for any pixel to see all of them.
+ * Six chromatic samples. Fewer than eight keeps distinct colour bands visible instead of averaging
+ * toward white; more than four gives smooth blending between them.
  */
-const int SAMPLES = 8;
+const int SAMPLES = 6;
 
 /*
- * The source's spectral4(), taken continuously so SAMPLES can vary: f in 0..1 walks the same
- * red -> yellow -> green -> cyan ramp that s in 0..3 did.
+ * Premium palette: electric blue → deep purple → hot pink → warm amber. Each colour is
+ * highly saturated so the chromatic aberration reads as vivid prismatic bands, not a faint wash.
+ * The weighted average is a rich purple (~0.63, 0.19, 0.65), which tints the bright core instead
+ * of desaturating it.
  */
 float3 spectral(float f) {
-    float x = f * 3.0;
-    return clamp(
-        float3(abs(x - 3.0) - 1.0, 2.0 - abs(x - 2.0), 2.0 - abs(x - 4.0)),
-        0.0,
-        1.0
-    );
+    float t = clamp(f, 0.0, 1.0) * 3.0;
+    float3 c = mix(float3(0.0, 0.3, 1.0), float3(0.5, 0.0, 1.0), clamp(t, 0.0, 1.0));
+    c = mix(c, float3(1.0, 0.0, 0.6), clamp(t - 1.0, 0.0, 1.0));
+    c = mix(c, float3(1.0, 0.5, 0.0), clamp(t - 2.0, 0.0, 1.0));
+    return c;
 }
 
 half4 main(float2 fragCoord) {
@@ -153,10 +147,6 @@ half4 main(float2 fragCoord) {
     float soft = 0.01 * res * max(0.0, SOFTNESS + mid * MID_SOFT);
 
     float dUnres = max(length(p) - mix(0.14, UNRES_SCALE, res), 0.0);
-    // Deviation from the source, which used p.x here. p.x grows with the aspect ratio, so on a wide
-    // surface the sine fitted extra cycles in and the lens turned into a wiggly ribbon. xN is already
-    // normalised by aspect, so the identical waveform simply stretches to whatever width it is given
-    // — and at aspect 1 this is exactly the original.
     float yMain = A1 * env * res * sin(xN * FREQ + drift);
 
     float bandFillTh = max(BAND_THICK, 0.0001);
@@ -185,7 +175,12 @@ half4 main(float2 fragCoord) {
     float boost = (1.0 - res) * (14.0 * low + 4.0);
     col += float3(0.5 * inten * (lorM + boost) / (sqrt(dM * dM + soft * soft) + th));
 
-    col = pow(max(col, float3(0.0)), float3(1.5));
+    col = pow(max(col, float3(0.0)), float3(1.4));
+
+    // Saturation boost: keeps chromatic bands vivid instead of fading to gray.
+    float luma = dot(col, float3(0.299, 0.587, 0.114));
+    col = max(mix(float3(luma), col, 1.3), float3(0.0));
+
     float emT = clamp((abs(yScreen) - 1.0 + EDGE_INSET) / (-max(EDGE_MASK, 0.0001)), 0.0, 1.0);
     float em = emT * emT * (3.0 - 2.0 * emT);
     float sides = pow(env, SIDE_FADE);

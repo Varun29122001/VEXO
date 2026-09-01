@@ -13,5 +13,7 @@
       Settings is an ordinary opaque screen, so it must not inherit the assistant's transparent
       window or the Compose surface would draw over whatever is behind it.
     -->
-    <style name="Theme.VexoSettings" parent="android:Theme.Material.NoActionBar" />
+    <style name="Theme.VexoSettings" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>
