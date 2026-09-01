@@ -6,6 +6,16 @@ woken by voice, and can optionally be taught to respond only to yours.
 
 Package: `com.vexo` · versionName `1.0` · versionCode `1`
 
+---
+
+## 📚 Documentation
+
+- **[VEXO_GUIDE.md](VEXO_GUIDE.md)** - Quick reference guide (features, settings, tech stack)
+- **[docs/](docs/)** - Technical documentation (icon design, features, plugins)
+- **[DOCUMENTATION.md](DOCUMENTATION.md)** - Full documentation index
+
+---
+
 ## What it actually does
 
 VEXO handles two kinds of request today:
