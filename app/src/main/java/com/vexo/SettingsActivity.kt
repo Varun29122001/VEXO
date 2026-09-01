@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import com.vexo.speaker.EnrolResult
 import com.vexo.speaker.VoiceRecorder
 import com.vexo.voice.VoiceOption
+import com.vexo.ui.settings.IconVariant
 import com.vexo.ui.settings.SettingsActions
 import com.vexo.ui.settings.SettingsScreen
 import com.vexo.ui.settings.SettingsUiState
@@ -81,6 +82,7 @@ class SettingsActivity : ComponentActivity() {
                         voiceSampleCount = profile?.sampleCount ?: 0,
                         voiceLabel = VoiceOption.labelFor(speakerId),
                         neuralReady = vexo.textToSpeech.isNeuralReady(),
+                        selectedIcon = getSelectedIcon(),
                         busy = busy,
                         status = status,
                     ),
@@ -102,10 +104,21 @@ class SettingsActivity : ComponentActivity() {
                         onPreviousVoice = { stepVoice(-1) },
                         onNextVoice = { stepVoice(+1) },
                         onPreviewVoice = ::previewVoice,
+                        onIconSelected = ::setAppIcon,
                     ),
                 )
             }
         }
+    }
+
+    private fun getSelectedIcon(): IconVariant {
+        return IconManager.getSelectedIcon(this)
+    }
+
+    private fun setAppIcon(variant: IconVariant) {
+        IconManager.setSelectedIcon(this, variant)
+        status = "App icon changed to ${variant.displayName}. Icon will update shortly!"
+        permissionEpoch++
     }
 
     override fun onResume() {

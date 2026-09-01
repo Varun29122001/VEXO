@@ -64,6 +64,7 @@ data class SettingsUiState(
     val voiceSampleCount: Int,
     val voiceLabel: String,
     val neuralReady: Boolean,
+    val selectedIcon: IconVariant,
     val busy: Boolean,
     val status: String?,
 )
@@ -80,6 +81,7 @@ data class SettingsActions(
     val onPreviousVoice: () -> Unit,
     val onNextVoice: () -> Unit,
     val onPreviewVoice: () -> Unit,
+    val onIconSelected: (IconVariant) -> Unit,
 )
 
 private val CardBackground = Color(0xFF1C1C1E)
@@ -235,6 +237,16 @@ fun SettingsScreen(state: SettingsUiState, actions: SettingsActions) {
         SectionFooter(
             "Voice print stays on-device and is never uploaded. This is " +
                 "personalisation, not security.",
+        )
+
+        Spacer(Modifier.height(28.dp))
+
+        SectionHeader("APP ICON")
+        GroupedCard {
+            IconPickerContent(state.selectedIcon, actions.onIconSelected)
+        }
+        SectionFooter(
+            "Choose your preferred icon style. The icon will update immediately.",
         )
 
         Spacer(Modifier.height(40.dp))
@@ -547,6 +559,67 @@ private fun VoiceProfileContent(state: SettingsUiState, actions: SettingsActions
                     color = AccentRed,
                     onClick = actions.onDeleteVoice,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun IconPickerContent(selectedIcon: IconVariant, onIconSelected: (IconVariant) -> Unit) {
+    Column {
+        IconVariant.values().forEachIndexed { index, variant ->
+            if (index > 0) CardDivider()
+
+            val interactionSource = remember { MutableInteractionSource() }
+            val isPressed by interactionSource.collectIsPressedAsState()
+            val scale by animateFloatAsState(
+                targetValue = if (isPressed) 0.97f else 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                ),
+                label = "iconPickerScale",
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .scale(scale)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = { onIconSelected(variant) },
+                    )
+                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        variant.displayName,
+                        fontSize = 16.sp,
+                        color = Color.White,
+                        fontWeight = if (selectedIcon == variant) FontWeight.Medium else FontWeight.Normal,
+                    )
+                    Text(
+                        variant.description,
+                        fontSize = 13.sp,
+                        color = TextSecondary,
+                    )
+                }
+
+                AnimatedVisibility(
+                    visible = selectedIcon == variant,
+                    enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) +
+                        androidx.compose.animation.scaleIn(spring(stiffness = Spring.StiffnessMediumLow)),
+                    exit = fadeOut(tween(150)) + androidx.compose.animation.scaleOut(tween(150)),
+                ) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = "Selected",
+                        tint = AccentGreen,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
     }
