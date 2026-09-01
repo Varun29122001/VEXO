@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+    ALTERNATIVE 2: Titanium Minimal
+    Style: Ultra-minimal Swiss design with metallic finish
+    Inspired by: Apple Watch faces, macOS Big Sur icons
+    -->
+
+    <!-- Subtle shadow -->
+    <path
+        android:pathData="M54,69 L37,38 L44,38 L54,58 L64,38 L71,38 Z"
+        android:fillColor="#000000"
+        android:fillAlpha="0.2" />
+
+    <!-- Main V with subtle metallic gradient -->
+    <path
+        android:pathData="M54,68 L38,38 L44,38 L54,58 L64,38 L70,38 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="38"
+                android:endX="54"
+                android:endY="68"
+                android:type="linear">
+                <item android:color="#FFFFFF" android:offset="0.0" />
+                <item android:color="#F5F5F7" android:offset="0.5" />
+                <item android:color="#D1D1D6" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Minimal edge highlight -->
+    <path
+        android:pathData="M40,40 L48,64 L46,64 L40,43 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.4" />
+
+    <!-- Clean stroke -->
+    <path
+        android:pathData="M38,38 L54,68 L70,38"
+        android:strokeWidth="1.0"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.3"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

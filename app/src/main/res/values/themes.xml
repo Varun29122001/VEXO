@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.VEXO" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Chromeless, translucent window: the assistant never draws a full-screen surface. -->
+    <style name="Theme.Vexo" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+
+    <!--
+      Settings is an ordinary opaque screen, so it must not inherit the assistant's transparent
+      window or the Compose surface would draw over whatever is behind it.
+    -->
+    <style name="Theme.VexoSettings" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

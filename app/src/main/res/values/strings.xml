@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">VEXO</string>
+    <string name="settings_label">VEXO settings</string>
+    <string name="settings_shortcut_short">Settings</string>
+    <string name="settings_shortcut_long">VEXO settings</string>
+    <string name="wake_channel_name">Wake word</string>
+    <string name="wake_channel_description">Shown while VEXO is listening for its wake word.</string>
+    <string name="wake_notification_title">VEXO is listening</string>
+    <string name="wake_notification_text">Say \"Hey VEXO\". Tap to change this.</string>
 </resources>
