@@ -111,10 +111,9 @@ const int SAMPLES = 6;
  * of desaturating it.
  */
 float3 spectral(float f) {
-    float t = clamp(f, 0.0, 1.0) * 3.0;
+    float t = clamp(f, 0.0, 1.0) * 2.0;
     float3 c = mix(float3(0.008, 0.051, 0.102), float3(0.043, 0.118, 0.227), clamp(t, 0.0, 1.0));
     c = mix(c, float3(0.0, 0.902, 1.0), clamp(t - 1.0, 0.0, 1.0));
-    c = mix(c, float3(0.0, 0.902, 1.0), clamp(t - 2.0, 0.0, 1.0));
     return c;
 }
 
@@ -173,13 +172,13 @@ half4 main(float2 fragCoord) {
     float dM = mix(dUnres, abs(p.y - yMain), res);
     float lorM = mix(1.0 / (1.0 + (0.02 * dM) * (0.02 * dM)), 1.0, res);
     float boost = (1.0 - res) * (14.0 * low + 4.0);
-    col += float3(0.0, 0.451, 0.5) * inten * (lorM + boost) / (sqrt(dM * dM + soft * soft) + th);
+    col += float3(0.0, 0.902, 1.0) * inten * (lorM + boost) / (sqrt(dM * dM + soft * soft) + th);
 
     col = pow(max(col, float3(0.0)), float3(1.4));
 
     // Saturation boost: keeps chromatic bands vivid instead of fading to gray.
     float luma = dot(col, float3(0.299, 0.587, 0.114));
-    col = max(mix(float3(luma), col, 1.3), float3(0.0));
+    col = max(mix(float3(luma), col, 1.0), float3(0.0));
 
     float emT = clamp((abs(yScreen) - 1.0 + EDGE_INSET) / (-max(EDGE_MASK, 0.0001)), 0.0, 1.0);
     float em = emT * emT * (3.0 - 2.0 * emT);
