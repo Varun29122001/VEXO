@@ -30,8 +30,8 @@ package com.vexo.ui.assistant
  * 5. **The side falloff is the amplitude envelope, not a Gaussian**, so brightness and amplitude
  *    reach zero at the same place and the wave tapers to a point rather than to a straight line.
  *
- * 6. **Six chromatic samples** and `spectral(float)` walks a blue → purple → pink → amber palette
- *    for a premium chromatic spread. Six is enough for smooth blending without averaging to white.
+ * 6. **Six chromatic samples** and `spectral(float)` walks a Midnight Blue → Deep Ocean Blue → Aqua Cyan palette
+ *    for a premium ocean chromatic spread. Six is enough for smooth blending without averaging to white.
  *
  * Each is explained at the constant it belongs to. `AMPLITUDE`, `FREQ` and `ABER_FREQ` are retuned
  * for the wider surface; everything else — the spectral split, the metaball fields, the settle
@@ -105,16 +105,16 @@ const float AUDIO_AMP = 0.35;
 const int SAMPLES = 6;
 
 /*
- * Premium palette: electric blue → deep purple → hot pink → warm amber. Each colour is
- * highly saturated so the chromatic aberration reads as vivid prismatic bands, not a faint wash.
- * The weighted average is a rich purple (~0.63, 0.19, 0.65), which tints the bright core instead
+ * VEXO OCEAN palette: Midnight Blue → Deep Ocean Blue → Aqua Cyan. Each colour is
+ * highly saturated so the chromatic aberration reads as vivid ocean bands, not a faint wash.
+ * The weighted average is a deep ocean blue, which tints the bright core with cyan instead
  * of desaturating it.
  */
 float3 spectral(float f) {
     float t = clamp(f, 0.0, 1.0) * 3.0;
-    float3 c = mix(float3(0.0, 0.3, 1.0), float3(0.5, 0.0, 1.0), clamp(t, 0.0, 1.0));
-    c = mix(c, float3(1.0, 0.0, 0.6), clamp(t - 1.0, 0.0, 1.0));
-    c = mix(c, float3(1.0, 0.5, 0.0), clamp(t - 2.0, 0.0, 1.0));
+    float3 c = mix(float3(0.008, 0.051, 0.102), float3(0.043, 0.118, 0.227), clamp(t, 0.0, 1.0));
+    c = mix(c, float3(0.0, 0.902, 1.0), clamp(t - 1.0, 0.0, 1.0));
+    c = mix(c, float3(0.0, 0.902, 1.0), clamp(t - 2.0, 0.0, 1.0));
     return c;
 }
 
@@ -173,7 +173,7 @@ half4 main(float2 fragCoord) {
     float dM = mix(dUnres, abs(p.y - yMain), res);
     float lorM = mix(1.0 / (1.0 + (0.02 * dM) * (0.02 * dM)), 1.0, res);
     float boost = (1.0 - res) * (14.0 * low + 4.0);
-    col += float3(0.5 * inten * (lorM + boost) / (sqrt(dM * dM + soft * soft) + th));
+    col += float3(0.0, 0.451, 0.5) * inten * (lorM + boost) / (sqrt(dM * dM + soft * soft) + th);
 
     col = pow(max(col, float3(0.0)), float3(1.4));
 
