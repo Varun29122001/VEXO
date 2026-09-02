@@ -1,11 +1,11 @@
 [versions]
 agp = "9.3.2"
-kotlin = "2.2.10"
+kotlin = "2.4.10"
 coreKtx = "1.19.0"
 activityCompose = "1.13.0"
 lifecycleRuntimeKtx = "2.11.0"
-composeBom = "2026.02.01"
-coroutines = "1.10.2"
+composeBom = "2026.08.00"
+coroutines = "1.11.0"
 junit = "4.13.2"
 # Neural TTS: JitPack-published AAR bundling onnxruntime + the sherpa-onnx JNI layer.
 sherpaOnnx = "v1.13.5"

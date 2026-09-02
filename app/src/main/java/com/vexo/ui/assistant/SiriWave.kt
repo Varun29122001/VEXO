@@ -48,7 +48,7 @@ enum class SiriWaveVariant {
  * normalised 0..1 microphone amplitude; at 0 nothing in the animation depends on the microphone, and
  * speech only adds movement.
  *
- * Version 1 ([VoiceOrb]) is still in the codebase and can be swapped back in at the call site.
+ * The animation is self-contained in two AGSL shaders defined in `SiriWaveShader.kt`.
  */
 @Composable
 fun SiriWave(

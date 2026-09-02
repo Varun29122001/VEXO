@@ -1,91 +1,49 @@
 package com.vexo.ui.assistant
 
 /**
- * **Animation version 2.** AGSL ports of the Siri-style GLSL shaders.
+ * AGSL ports of the Siri-style GLSL shaders, rewritten for the VEXO OCEAN palette.
  *
- * The first two deviations from the GLSL originals are forced by the target. The rest are forced by
- * the surface: the source was written for a square canvas, and VEXO draws the wave into a band as
- * wide as the screen, where several of the source's constants stop meaning what they meant.
+ * Ported from the canonical WebGL sources (`siriWaveCore` / `siriFluidDotsCore`). Only type names
+ * (`vec2` -> `float2`, `mat2` -> `float2x2`) and the entry point (`mainImage` -> `half4 main`)
+ * changed for SkSL. Three adaptations are made for VEXO's Android overlay:
  *
- * 1. **Alpha is derived from brightness.** The originals return `vec4(col, 1.0)` because they draw
- *    onto an opaque black canvas. VEXO's window is translucent and floats over whatever app is in
- *    front, so an opaque return would paint a black slab across the bottom of the screen. Alpha is
- *    taken from the brightest channel and the colour returned premultiplied, which is exactly what
- *    the version 1 orb did via its `extractAlpha`. Where the shader is black it is now transparent.
+ * 1. **Alpha from brightness** — the originals return opaque black; VEXO's window is translucent,
+ *    so alpha is taken from the brightest channel and colour returned premultiplied.
  *
- * 2. **`iAudio` is folded into the existing band levels.** VEXO is a voice assistant, so a purely
- *    time-driven waveform would be a functional regression from the orb it replaces. The wave shader
- *    already synthesises fake `low`/`mid`/`high` levels from sine functions; real microphone
- *    amplitude is combined with `max()`, so at `iAudio = 0` nothing in the idle animation depends on
- *    the microphone and speech only ever adds movement.
+ * 2. **`iAudio` for voice reactivity** — real microphone amplitude is folded into the existing
+ *    `low`/`mid`/`high` band levels with `max()`, so at `iAudio = 0` the idle animation is
+ *    unchanged and speech only adds movement.
  *
- * 3. **The waveform is normalised by aspect ratio.** `sin(p.x * FREQ)` becomes `sin(xN * FREQ)`.
- *    `p.x` grows with the aspect ratio, so on a wide surface the sine fitted extra cycles in and the
- *    lens turned into a wiggly ribbon; `xN` is already divided by the aspect, so the same waveform
- *    stretches to whatever width it is given. At aspect 1 this is exactly the original.
+ * 3. **Wide-band rendering** — the source targets a square canvas; VEXO draws the wave into a
+ *    full-width band. `SPAN`/`VSCALE` replace the single `WAVE_SCALE`, the waveform is normalised
+ *    by aspect ratio, and brightness falls off with the amplitude envelope instead of a Gaussian.
  *
- * 4. **Horizontal and vertical scale are separate** — `SPAN` and `VSCALE` in place of one
- *    `WAVE_SCALE`, which in a wide band would otherwise set the span and the crest height together.
- *
- * 5. **The side falloff is the amplitude envelope, not a Gaussian**, so brightness and amplitude
- *    reach zero at the same place and the wave tapers to a point rather than to a straight line.
- *
- * 6. **Six chromatic samples** and `spectral(float)` walks a blue → purple → pink → amber palette
- *    for a premium chromatic spread. Six is enough for smooth blending without averaging to white.
- *
- * Each is explained at the constant it belongs to. `AMPLITUDE`, `FREQ` and `ABER_FREQ` are retuned
- * for the wider surface; everything else — the spectral split, the metaball fields, the settle
- * curves, the band fill — is transcribed unchanged. Only type names (`vec2` → `float2`,
- * `mat2` → `float2x2`) and the entry point (`mainImage` → `half4 main`) are adapted, because SkSL is
- * stricter than GLSL about constructing vectors from scalars.
+ * Palette: VEXO OCEAN — Midnight Blue #020D1A, Deep Ocean Blue #0B1E3A, Aqua Cyan #00E6FF.
  */
 
-/** The iOS voice waveform: chromatic, frequency-reactive. */
+/** The iOS voice waveform: chromatic, frequency-reactive. VEXO OCEAN palette. */
 internal const val SIRI_WAVE_SHADER = """
 uniform float2 iResolution;
 uniform float iTime;
 uniform float iAudio;
 
 const float PI = 3.14159265359;
-const float AMPLITUDE   = 0.40;
+const float AMPLITUDE   = 0.32;
 const float FREQ        = 2.2;
 const float ABER_FREQ   = 2.0;
-const float SPEED       = 2.0;
-/*
- * Horizontal and vertical scale, split apart from the source's single `WAVE_SCALE = 0.6`, because
- * VEXO draws the wave into a wide band rather than the square the GLSL was written for. One scale
- * cannot serve both there: it sets the span *and* the amplitude at once.
- *
- * SPAN is in half-widths. xN runs to ±1/SPAN and the envelope forces amplitude to zero beyond
- * |xN| > 1.111, so 0.9 lands that zero exactly on the left and right edges — the wave spans the
- * whole band and tapers into nothing at both ends.
- *
- * VSCALE stays at the source value, which keeps the crest height and the line thickness in pixels
- * as they were. It also leaves headroom: the wave's loudest crest is 0.76 * VSCALE = 0.46 of the
- * half-height, inside the 0.6 where EDGE_MASK starts, so loud speech grows instead of clipping.
- */
+const float SPEED       = 2.4;
 const float SPAN        = 0.9;
 const float VSCALE      = 0.6;
-const float ABERRATION  = 2.8;
-const float THICKNESS   = 3.5;
-const float INTENSITY   = 2.2;
-/*
- * Exponent on the amplitude envelope, used as the horizontal brightness falloff. The source used a
- * separate Gaussian, `exp(-(xN * 1.7)^2)`, which is wrong for a wide band in both directions: it
- * died out around 40 % of the width, well before the envelope it was meant to accompany, and where
- * it had not died the collapsing envelope left every coloured curve and the band fill sitting on
- * y = 0 — a straight bright line running out to both screen edges.
- *
- * Tying the falloff to the envelope makes brightness and amplitude vanish together, so the wave
- * tapers to a point instead of a line, with nothing to clip against.
- */
+const float ABERRATION  = 2.6;
+const float THICKNESS   = 3.0;
+const float INTENSITY   = 2.0;
 const float SIDE_FADE   = 1.5;
 const float EDGE_MASK   = 0.4;
 const float EDGE_INSET  = 0.0;
-const float BAND_FILL   = 35000.0;
-const float BAND_THICK  = 0.09;
-const float SOFTNESS    = 3.0;
-const float LOW_AMP     = 7.0;
+const float BAND_FILL   = 30000.0;
+const float BAND_THICK  = 0.08;
+const float SOFTNESS    = 2.5;
+const float LOW_AMP     = 6.0;
 const float LOW_INT     = 1.5;
 const float MID_ABER    = 0.8;
 const float MID_ABAMP   = 0.05;
@@ -95,26 +53,13 @@ const float HIGH_ABER   = 0.5;
 const float HIGH_ABAMP  = 0.06;
 const float RESOLVED    = 1.0;
 const float UNRES_SCALE = 0.14;
+const float AUDIO_AMP   = 0.35;
+const int   SAMPLES     = 6;
 
-const float AUDIO_AMP = 0.35;
-
-/*
- * Six chromatic samples. Fewer than eight keeps distinct colour bands visible instead of averaging
- * toward white; more than four gives smooth blending between them.
- */
-const int SAMPLES = 6;
-
-/*
- * Premium palette: electric blue → deep purple → hot pink → warm amber. Each colour is
- * highly saturated so the chromatic aberration reads as vivid prismatic bands, not a faint wash.
- * The weighted average is a rich purple (~0.63, 0.19, 0.65), which tints the bright core instead
- * of desaturating it.
- */
 float3 spectral(float f) {
-    float t = clamp(f, 0.0, 1.0) * 3.0;
-    float3 c = mix(float3(0.0, 0.3, 1.0), float3(0.5, 0.0, 1.0), clamp(t, 0.0, 1.0));
-    c = mix(c, float3(1.0, 0.0, 0.6), clamp(t - 1.0, 0.0, 1.0));
-    c = mix(c, float3(1.0, 0.5, 0.0), clamp(t - 2.0, 0.0, 1.0));
+    float t = clamp(f, 0.0, 1.0) * 2.0;
+    float3 c = mix(float3(0.008, 0.051, 0.102), float3(0.043, 0.118, 0.227), clamp(t, 0.0, 1.0));
+    c = mix(c, float3(0.0, 0.902, 1.0), clamp(t - 1.0, 0.0, 1.0));
     return c;
 }
 
@@ -173,13 +118,9 @@ half4 main(float2 fragCoord) {
     float dM = mix(dUnres, abs(p.y - yMain), res);
     float lorM = mix(1.0 / (1.0 + (0.02 * dM) * (0.02 * dM)), 1.0, res);
     float boost = (1.0 - res) * (14.0 * low + 4.0);
-    col += float3(0.5 * inten * (lorM + boost) / (sqrt(dM * dM + soft * soft) + th));
+    col += float3(0.0, 0.902, 1.0) * inten * (lorM + boost) / (sqrt(dM * dM + soft * soft) + th);
 
-    col = pow(max(col, float3(0.0)), float3(1.4));
-
-    // Saturation boost: keeps chromatic bands vivid instead of fading to gray.
-    float luma = dot(col, float3(0.299, 0.587, 0.114));
-    col = max(mix(float3(luma), col, 1.3), float3(0.0));
+    col = pow(max(col, float3(0.0)), float3(1.5));
 
     float emT = clamp((abs(yScreen) - 1.0 + EDGE_INSET) / (-max(EDGE_MASK, 0.0001)), 0.0, 1.0);
     float em = emT * emT * (3.0 - 2.0 * emT);
@@ -187,8 +128,6 @@ half4 main(float2 fragCoord) {
     col *= mix(1.0, em * sides, res);
     col *= res;
 
-    // Premultiplied, with alpha from the brightest channel: black becomes transparent so the
-    // waveform composites onto VEXO's translucent window instead of masking it.
     float a = clamp(max(max(col.r, col.g), col.b), 0.0, 1.0);
     return half4(half3(clamp(col, float3(0.0), float3(1.0))), half(a));
 }
@@ -208,7 +147,6 @@ const float FALLOFF_P  = 1.35;
 const float FADE_START = 0.02;
 const float FADE_END   = 0.56;
 const float ABERR = 0.005;
-// vec3(0.0, 0.5, 1.0) * ABERR, folded to a literal so it stays a constant expression in SkSL.
 const float3 SPECTRAL = float3(0.0, 0.0025, 0.005);
 const float HUE_SPEED = 0.06;
 const float COLOR_K   = 0.5;
@@ -290,7 +228,6 @@ float3 scene(float2 p, float t, float audio) {
     float tb = tg - (GATHER_START + GATHER_HOLD);
     float charge = smoothstep(-CHARGE_T, 0.0, min(tb, 0.0)) * gC;
     float flash = tb > 0.0 ? exp(-tb * FLASH_DECAY) : 0.0;
-    // Speech brightens the cluster; at audio = 0 this is exactly the original expression.
     float gBright = mix(1.0, GATHER_DIM, gC)
         * (1.0 + CHARGE_GLOW * charge + FLASH_GAIN * flash + 0.6 * audio);
     float3 total3 = float3(100000.0);

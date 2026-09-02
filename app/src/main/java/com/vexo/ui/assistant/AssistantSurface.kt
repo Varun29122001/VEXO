@@ -38,10 +38,6 @@ private const val EXIT_DURATION_MILLIS = 200
  */
 private val WaveHeight = 220.dp
 
-/** Retained for animation version 1 ([VoiceOrb]), which is no longer wired up. */
-@Suppress("unused")
-private val OrbSize = 148.dp
-
 /**
  * Bottom-anchored assistant surface. It owns only its own enter/exit animation; [onClosed] fires
  * after the exit animation completes so the host can tear the window down without a visible cut.
