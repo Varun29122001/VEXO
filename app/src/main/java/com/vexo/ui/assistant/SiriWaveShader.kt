@@ -30,8 +30,8 @@ package com.vexo.ui.assistant
  * 5. **The side falloff is the amplitude envelope, not a Gaussian**, so brightness and amplitude
  *    reach zero at the same place and the wave tapers to a point rather than to a straight line.
  *
- * 6. **Six chromatic samples** and `spectral(float)` walks a Midnight Blue → Deep Ocean Blue → Aqua Cyan palette
- *    for a premium ocean chromatic spread. Six is enough for smooth blending without averaging to white.
+ * 6. **Six chromatic samples** and `spectral(float)` walks a Midnight Blue → Deep Ocean Blue → Aqua Cyan
+ *    palette for the VEXO OCEAN look. Six is enough for smooth blending without averaging to white.
  *
  * Each is explained at the constant it belongs to. `AMPLITUDE`, `FREQ` and `ABER_FREQ` are retuned
  * for the wider surface; everything else — the spectral split, the metaball fields, the settle
@@ -105,10 +105,10 @@ const float AUDIO_AMP = 0.35;
 const int SAMPLES = 6;
 
 /*
- * VEXO OCEAN palette: Midnight Blue → Deep Ocean Blue → Aqua Cyan. Each colour is
- * highly saturated so the chromatic aberration reads as vivid ocean bands, not a faint wash.
- * The weighted average is a deep ocean blue, which tints the bright core with cyan instead
- * of desaturating it.
+ * VEXO OCEAN palette: Midnight Blue (#020D1A) → Deep Ocean Blue (#0B1E3A) → Aqua Cyan (#00E6FF).
+ * Each colour is highly saturated so the chromatic aberration reads as vivid ocean bands, not a
+ * faint wash. The weighted average is a deep ocean blue, which tints the bright core with cyan
+ * instead of desaturating it.
  */
 float3 spectral(float f) {
     float t = clamp(f, 0.0, 1.0) * 2.0;
